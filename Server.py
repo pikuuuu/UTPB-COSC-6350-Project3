@@ -24,6 +24,7 @@ def handle_client(conn, addr):
         conn.sendall(struct.pack('!I', total_crumbs))
         
         while True:
+            print(f"Sending crumbs to client...")
             for i, crumb in enumerate(crumbs):
                 key = keys[crumb]
                 encrypted_payload = aes_encrypt(PAYLOAD, key)

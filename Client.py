@@ -58,6 +58,7 @@ def tcp_client():
                     except:
                         pass
 
+                print(f"Sending ACK for {completion}% to server...")
                 client_socket.sendall(struct.pack('!f', completion))
 
             if completion == 1.0:
