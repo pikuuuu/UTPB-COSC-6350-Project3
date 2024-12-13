@@ -9,75 +9,76 @@ SERVER_PORT = 5555
 def tcp_client():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
         try:
+            print(f"[INFO] Connecting to server at {SERVER_HOST}:{SERVER_PORT}...")
             client_socket.connect((SERVER_HOST, SERVER_PORT))
-            print(f"[INFO] Connected to {SERVER_HOST}:{SERVER_PORT}")
+            print(f"[INFO] Connected to server!")
 
             total_crumbs = struct.unpack('!I', client_socket.recv(4))[0]
-            print(f"[INFO] Total crumbs to receive: {total_crumbs}")
+            print(f"[INFO] Expecting {total_crumbs} crumbs from the server.")
             crumbs = [None] * total_crumbs
             attempted_keys = [[] for _ in range(total_crumbs)]
             num_decoded = 0
             completion = 0
-            ref_payload_size = 0
 
             while num_decoded < total_crumbs:
                 for i in range(total_crumbs):
                     if crumbs[i] is not None:
-                        # Skip already decoded crumbs
-                        # client_socket.sendall(b'ACK')
-                        # client_socket.sendall(b'1')  # 1 for decoded
                         continue
 
-                    payload_size = struct.unpack('!I', client_socket.recv(4))[0]
-                    ref_payload_size = payload_size
-                    encrypted_payload = client_socket.recv(payload_size)
-
-                    # Acknowledge receipt of crumb
-                    # client_socket.sendall(b'ACK')
+                    try:
+                        payload_size = struct.unpack('!I', client_socket.recv(4))[0]
+                        encrypted_payload = client_socket.recv(payload_size)
+                    except Exception as e:
+                        print(f"[WARN] Error receiving crumb {i}: {e}")
+                        continue
 
                     available_keys = [key for key in keys.values() if key not in attempted_keys[i]]
-                    
+
                     if not available_keys:
-                        # print(f"[WARN] No more keys to try for crumb {i}")
-                        # client_socket.sendall(b'0')  # 0 for not decoded
+                        print(f"[WARN] No keys left to try for crumb {i}. Marking as undecodable.")
+                        crumbs[i] = "INVALID"  # Mark the crumb as invalid
                         continue
 
-                    key = random.choice(available_keys)
-                    try:
-                        decrypted_payload = aes_decrypt(encrypted_payload, key)
-                        if decrypted_payload == PAYLOAD:
-                            crumb = next(k for k, v in keys.items() if v == key)
-                            crumbs[i] = crumb
-                            num_decoded += 1
-                            new_completion = num_decoded / total_crumbs
-                            if round(new_completion, 2) != round(completion, 2):
-                                print(f"[INFO] Decoding progress: {completion:.0%}")
-                            completion = new_completion
-                        else:
+                    attempts = 0
+                    success = False
+                    for key in available_keys:
+                        try:
+                            decrypted_payload = aes_decrypt(encrypted_payload, key)
+                            if decrypted_payload == PAYLOAD:
+                                crumb = next(k for k, v in keys.items() if v == key)
+                                crumbs[i] = crumb
+                                num_decoded += 1
+                                completion = num_decoded / total_crumbs
+                                print(f"[INFO] Progress: {completion:.2%}")
+                                print(f"[DEBUG] Crumb {i} successfully decrypted with key {key.hex()} after {attempts + 1} attempts")
+                                success = True
+                                break
+                            else:
+                                attempted_keys[i].append(key)
+                        except Exception:
                             attempted_keys[i].append(key)
-                    except:
-                        pass
+                        attempts += 1
 
-                print(f"Sending ACK for {completion}% to server...")
+                    if not success:
+                        print(f"[WARN] Crumb {i} could not be decrypted after {attempts} attempts.")
+
+                # Send progress to the server
                 client_socket.sendall(struct.pack('!f', completion))
 
-            if completion == 1.0:
-                decoded_bytes = bytes(recompose_byte(crumbs[i:i+4]) for i in range(0, len(crumbs), 4))
-                print("[INFO] File successfully received and decoded.")
-            else:
-                print("[WARN] File transmission incomplete.")
+                if completion >= 1.0:
+                    print("\n[SUCCESS] File successfully received and decoded!")
+                    client_socket.sendall(b'ACK')
+                    break
 
-            # flush extra data crumbs
-            while (extra_recv := client_socket.recv(4)) == struct.pack('!I', ref_payload_size):
-                client_socket.recv(ref_payload_size)
-
-            if extra_recv[:3] != b'ACK':
-                print("[ERROR] Did not receive proper acknowledgment from server")
+            if num_decoded < total_crumbs:
+                print("[WARN] Some crumbs could not be decoded. Partial file received.")
 
         except Exception as e:
             print(f"[ERROR] An error occurred: {e}")
         finally:
-            print(f"[INFO] Connection closed.")
+            print("[INFO] Closing connection to server.")
+
+
 
 if __name__ == "__main__":
     tcp_client()
