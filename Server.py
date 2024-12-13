@@ -13,7 +13,7 @@ def handle_client(conn, addr):
     conn.settimeout(TIMEOUT)
     print(f"\n[INFO] New connection established with {addr}")
     try:
-        # Read the file content
+        
         with open("risk.bmp", "rb") as file:
             file_content = file.read()
 
@@ -23,18 +23,18 @@ def handle_client(conn, addr):
 
         total_crumbs = len(crumbs)
         print(f"[INFO] Total crumbs to send: {total_crumbs}")
-        conn.sendall(struct.pack('!I', total_crumbs))  # Send the total number of crumbs to the client
+        conn.sendall(struct.pack('!I', total_crumbs))  
 
         while True:
             for i, crumb in enumerate(crumbs):
                 key = keys[crumb]
                 encrypted_payload = aes_encrypt(PAYLOAD, key)
-                conn.sendall(struct.pack('!I', len(encrypted_payload)))  # Send payload size
-                conn.sendall(encrypted_payload)  # Send encrypted payload
+                conn.sendall(struct.pack('!I', len(encrypted_payload)))  
+                conn.sendall(encrypted_payload)  
 
                 print(f"[DEBUG] Crumb {i}: Encrypted with key {key.hex()}")
 
-            # Wait for progress update from the client
+            
             try:
                 completion_data = conn.recv(4)
                 if not completion_data:
@@ -46,7 +46,7 @@ def handle_client(conn, addr):
 
                 if completion >= 1.0:
                     print("[SUCCESS] File fully transmitted and decoded by client.")
-                    conn.sendall(b'ACK')  # Final acknowledgment to client
+                    conn.sendall(b'ACK')  
                     break
 
             except socket.timeout:

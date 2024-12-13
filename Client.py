@@ -36,7 +36,7 @@ def tcp_client():
 
                     if not available_keys:
                         print(f"[WARN] No keys left to try for crumb {i}. Marking as undecodable.")
-                        crumbs[i] = "INVALID"  # Mark the crumb as invalid
+                        crumbs[i] = "INVALID"  
                         continue
 
                     attempts = 0
@@ -62,7 +62,7 @@ def tcp_client():
                     if not success:
                         print(f"[WARN] Crumb {i} could not be decrypted after {attempts} attempts.")
 
-                # Send progress to the server
+               
                 client_socket.sendall(struct.pack('!f', completion))
 
                 if completion >= 1.0:
